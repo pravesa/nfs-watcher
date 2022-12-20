@@ -1,0 +1,89 @@
+{
+  "name": "nfs-watcher",
+  "version": "0.1.0",
+  "description": "Native file system watcher using notify crate from rust via Node-API",
+  "keywords": [
+    "fswatch",
+    "fswatcher",
+    "watcher",
+    "recursive",
+    "native",
+    "fsevents",
+    "inotify",
+    "polling",
+    "notify",
+    "watchfile"
+  ],
+  "bugs": {
+    "url": "https://github.com/pravesa/nfs-watcher/issues",
+    "email": "praveen747757@gmail.com"
+  },
+  "license": "MIT",
+  "author": "Praveen Saravanan",
+  "repository": "https://github.com/pravesa/nfs-watcher.git",
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "main": "index.js",
+  "types": "index.d.ts",
+  "napi": {
+    "name": "nfs-watcher",
+    "triples": {
+      "additional": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-unknown-linux-musl",
+        "aarch64-pc-windows-msvc",
+        "x86_64-unknown-linux-musl",
+        "x86_64-unknown-freebsd"
+      ]
+    }
+  },
+  "scripts": {
+    "artifacts": "napi artifacts",
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform",
+    "version": "napi version",
+    "test": "jest",
+    "lint": "eslint .",
+    "lint:fix": "yarn lint --fix",
+    "prepare": "husky install",
+    "preversion": "yarn lint:fix",
+    "prepublishOnly": "yarn test & napi prepublish -t npm"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@napi-rs/cli": "^2.13.3",
+    "@types/eslint": "^8.4.10",
+    "@types/jest": "^29.2.4",
+    "@types/node": "^18.11.11",
+    "@typescript-eslint/eslint-plugin": "^5.45.1",
+    "@typescript-eslint/parser": "^5.45.1",
+    "eslint": "^8.29.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-import-resolver-typescript": "^3.5.2",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.0",
+    "jest": "^29.3.1",
+    "lint-staged": "^13.1.0",
+    "prettier": "^2.8.0",
+    "ts-jest": "^29.0.3",
+    "typescript": "^4.9.3"
+  },
+  "peerDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "prettier --write",
+      "eslint --max-warnings=0 --fix"
+    ],
+    "*.{md,json}": "prettier --write"
+  }
+}

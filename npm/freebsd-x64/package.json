@@ -1,0 +1,18 @@
+{
+  "name": "nfs-watcher-freebsd-x64",
+  "version": "0.1.0",
+  "os": [
+    "freebsd"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "main": "nfs-watcher.freebsd-x64.node",
+  "files": [
+    "nfs-watcher.freebsd-x64.node"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
