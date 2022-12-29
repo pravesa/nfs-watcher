@@ -184,3 +184,4 @@ Cargo.lock
 !.yarn/versions
 
 *.node
+lib
