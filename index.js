@@ -119,7 +119,9 @@ switch (platform) {
         nativeBinding = require('nfs-watcher-darwin-universal');
       }
       break;
-    } catch {}
+    } catch {
+      /* empty */
+    }
     switch (arch) {
       case 'x64':
         localFileExisted = existsSync(
