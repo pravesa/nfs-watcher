@@ -23,10 +23,12 @@
   "repository": "https://github.com/pravesa/nfs-watcher.git",
   "files": [
     "index.js",
-    "index.d.ts"
+    "index.d.ts",
+    "lib/*",
+    "types/*"
   ],
-  "main": "index.js",
-  "types": "index.d.ts",
+  "main": "lib/index.js",
+  "types": "types/index.d.ts",
   "napi": {
     "name": "nfs-watcher",
     "triples": {
@@ -86,6 +88,6 @@
       "prettier --write",
       "eslint --max-warnings=0 --fix"
     ],
-    "*.{md,json}": "prettier --write"
+    "*.{md,js,json}": "prettier --write"
   }
 }
