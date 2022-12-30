@@ -142,5 +142,15 @@ const watch = (dir: string | string[]) => {
   return watcher;
 };
 
+// Unwatch all paths on process exit
+process.on('SIGTERM', () => {
+  watcher.unwatch();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  process.emit('SIGTERM');
+});
+
 // eslint-disable-next-line import/prefer-default-export
 export {watch};
