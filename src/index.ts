@@ -99,29 +99,48 @@ class FsEvent extends EventEmitter {
       }
     });
   }
-  private clearFromWatching(path: string, cb: () => void) {
-    try {
-      cb();
-      this.emit('unwatch', 'success', path);
-    } catch (error) {
-      this.emit('error', error);
-    }
-  }
 
   // Public methods
 
+  /**
+   * This method takes one optional argument and will remove the passed in
+   * path from watching for fs events if it exist. This will remove all
+   * paths from watching if no argument is passed (similar to `unwatchAll()`).
+   * @param path file or dir to be unwatched (optional)
+   */
   unwatch(path?: string) {
+    // Call unwatchAll() if argument is empty
     if (!path) {
-      this.unwatchPaths.forEach((func, path) => {
-        this.clearFromWatching(path, func);
-      });
+      this.unwatchAll();
+      // Unwatch the path if exist
     } else if (this.unwatchPaths.has(path)) {
       const func = this.unwatchPaths.get(path);
       if (typeof func === 'function') {
-        this.clearFromWatching(path, func);
+        try {
+          func();
+          this.emit('unwatch', 0, `${path} removed from watching`);
+        } catch (error) {
+          this.emit('error', error);
+        }
       }
+      // Delete the path from map that was removed from watching
+      this.unwatchPaths.delete(path);
     } else {
-      this.emit('unwatch', 'failed', path);
+      this.emit('unwatch', 1, `${path} doesn't exist for unwatching`);
+    }
+  }
+
+  /**
+   * This method removes all paths from watching for fs events if exist.
+   */
+  unwatchAll() {
+    try {
+      this.unwatchPaths.forEach((func) => {
+        func();
+      });
+      this.emit('unwatch', 0, 'all paths removed from watching');
+    } catch (error) {
+      this.emit('error', error);
     }
   }
 }
@@ -144,7 +163,7 @@ const watch = (dir: string | string[]) => {
 
 // Unwatch all paths on process exit
 process.on('SIGTERM', () => {
-  watcher.unwatch();
+  watcher.unwatchAll();
   process.exit(0);
 });
 
