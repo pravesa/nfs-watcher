@@ -2,9 +2,11 @@
 
 #[macro_use]
 extern crate napi_derive;
+// extern crate globwalk;
 
 use std::path::Path;
 
+// use globwalk::FileType;
 use napi::{
   bindgen_prelude::*,
   threadsafe_function::{
@@ -14,10 +16,34 @@ use napi::{
 };
 use notify::{recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watcher};
 
-#[napi(ts_args_type = "dir: string, callback: (err: null | Error, event: string) => void")]
-pub fn watch(env: Env, dir: JsString, callback: JsFunction) -> Result<JsExternal> {
-  let dir = dir.into_utf8()?;
+// Filtering dirs using glob patterns for watching can also be done by using globwalk crate.
+// But it will result in bigger output size.
+//
+// fn walkdir() -> Result<()> {
+//   let walker = globwalk::GlobWalkerBuilder::from_patterns(
+//     std::env::current_dir()?,
+//     &["node_modules", "!**/.git", "!**/node_modules", "!**/target"],
+//   )
+//   .file_type(FileType::DIR)
+//   .build()
+//   .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?
+//   .into_iter();
 
+//   for dir in walker {
+//     if let Ok(direntry) = dir {
+//       // watch the matched paths for fs events
+//     }
+//   }
+
+//   Ok(())
+// }
+
+/// Watch for fs events using notify crate which implements native backends and polling feature.
+/// This function takes in array of paths to be watched and a callback to be invoked at addon's
+/// main thread.
+#[napi(ts_args_type = "dirs: string[], callback: (err: null | Error, event: string) => void")]
+pub fn watch(env: Env, dirs: Vec<JsString>, callback: JsFunction) -> Result<JsExternal> {
+  // Javascript callback to be invoked for fs events
   let tsfn: ThreadsafeFunction<Event, ErrorStrategy::CalleeHandled> = callback
     .create_threadsafe_function(0, |cx: ThreadSafeCallContext<Event>| {
       Ok(vec![cx
@@ -25,6 +51,7 @@ pub fn watch(env: Env, dir: JsString, callback: JsFunction) -> Result<JsExternal
         .create_string_from_std(serde_json::to_string(&cx.value)?)?])
     })?;
 
+  // Creates recommended watcher with javascript callback as an event handler
   let mut watcher = recommended_watcher(move |ev: notify::Result<Event>| {
     tsfn.call(
       ev.map_err(|e| Error::new(Status::GenericFailure, format!("{}", e))),
@@ -33,13 +60,20 @@ pub fn watch(env: Env, dir: JsString, callback: JsFunction) -> Result<JsExternal
   })
   .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
 
-  watcher
-    .watch(Path::new(dir.as_str()?), RecursiveMode::Recursive)
-    .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
+  // Initiate watcher for array of paths
+  for dir in dirs {
+    let dir = dir.into_utf8()?;
+
+    watcher
+      .watch(Path::new(dir.as_str()?), RecursiveMode::NonRecursive)
+      .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
+  }
 
   env.create_external(watcher, None)
 }
 
+/// This function invokes unwatch method on the specific path and removes that path
+/// from watching for fs events.
 #[napi]
 pub fn unwatch(env: Env, ext: JsExternal, dir: JsString) -> Result<JsUndefined> {
   let dir = dir.into_utf8()?;

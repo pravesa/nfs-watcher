@@ -75,28 +75,29 @@ class FsEvent extends EventEmitter {
   // This method initiates the native module notify with
   // path to be watched for fs events.
   private watch(paths: Set<string>) {
-    paths.forEach((path) => {
-      if (!this.ignoreMatcher(path)) {
-        const watcher = notify(path, (err, data) => {
-          if (err) {
-            // Emits 'error' event upon watch error from native module
-            this.emit('error', err);
-          }
+    const watchPaths = Array.from(paths);
 
-          const event = JSON.parse(data) as {type: string; paths: string[]};
-
-          event.paths[0] = event.paths[0].replace(/\\/g, '/');
-
-          if (
-            !this.ignoreMatcher(event.paths[0]) &&
-            this.includeMatcher(event.paths[0])
-          ) {
-            // Emits 'all' event with stringified event from native module
-            this.emit('all', event);
-          }
-        });
-        this.unwatchPaths.set(path, () => unwatch(watcher, path));
+    // Pass the array of paths to be watched to the notify addon
+    const watcher = notify(watchPaths, (err, data) => {
+      if (err) {
+        // Emits 'error' event upon watch error from native module
+        this.emit('error', err);
       }
+
+      const event = JSON.parse(data) as {type: string; paths: string[]};
+
+      event.paths[0] = event.paths[0].replace(/\\/g, '/');
+
+      if (
+        !this.ignoreMatcher(event.paths[0]) &&
+        this.includeMatcher(event.paths[0])
+      ) {
+        // Emits 'all' event with stringified event from native module
+        this.emit('all', event);
+      }
+    });
+    watchPaths.forEach((path) => {
+      this.unwatchPaths.set(path, () => unwatch(watcher, path));
     });
   }
 
