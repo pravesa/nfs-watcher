@@ -38,11 +38,11 @@ use notify::{recommended_watcher, Event, RecommendedWatcher, RecursiveMode, Watc
 //   Ok(())
 // }
 
-/// Watch for fs events using notify crate which implements native backends and polling feature.
-/// This function takes in array of paths to be watched and a callback to be invoked at addon's
-/// main thread.
-#[napi(ts_args_type = "dirs: string[], callback: (err: null | Error, event: string) => void")]
-pub fn watch(env: Env, dirs: Vec<JsString>, callback: JsFunction) -> Result<JsExternal> {
+/// Initiates recommended watcher instance with threadsafe callback function from
+/// node js main thread and call the callback on fs events. This function returns
+/// watcher instance which can be used to add paths to be watched for fs events.
+#[napi(ts_args_type = "callback: (err: null | Error, event: string) => void")]
+pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
   // Javascript callback to be invoked for fs events
   let tsfn: ThreadsafeFunction<Event, ErrorStrategy::CalleeHandled> = callback
     .create_threadsafe_function(0, |cx: ThreadSafeCallContext<Event>| {
@@ -52,6 +52,7 @@ pub fn watch(env: Env, dirs: Vec<JsString>, callback: JsFunction) -> Result<JsEx
     })?;
 
   // Creates recommended watcher with javascript callback as an event handler
+  #[allow(unused_mut)]
   let mut watcher = recommended_watcher(move |ev: notify::Result<Event>| {
     tsfn.call(
       ev.map_err(|e| Error::new(Status::GenericFailure, format!("{}", e))),
@@ -60,16 +61,19 @@ pub fn watch(env: Env, dirs: Vec<JsString>, callback: JsFunction) -> Result<JsEx
   })
   .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
 
-  // Initiate watcher for array of paths
-  for dir in dirs {
-    let dir = dir.into_utf8()?;
-
-    watcher
-      .watch(Path::new(dir.as_str()?), RecursiveMode::NonRecursive)
-      .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
-  }
-
   env.create_external(watcher, None)
+}
+
+/// This function takes in watcher instance and a path to be watched for events.
+#[napi]
+pub fn add(env: Env, ext: JsExternal, dir: JsString) -> Result<JsUndefined> {
+  let dir = dir.into_utf8()?;
+  let watcher = env.get_value_external::<RecommendedWatcher>(&ext)?;
+
+  watcher
+    .watch(Path::new(dir.as_str()?), RecursiveMode::NonRecursive)
+    .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
+  env.get_undefined()
 }
 
 /// This function invokes unwatch method on the specific path and removes that path

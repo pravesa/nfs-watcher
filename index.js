@@ -261,7 +261,8 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`);
 }
 
-const {watch, unwatch} = nativeBinding;
+const {watch, add, unwatch} = nativeBinding;
 
 module.exports.watch = watch;
+module.exports.add = add;
 module.exports.unwatch = unwatch;

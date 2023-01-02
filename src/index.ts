@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import EventEmitter from 'events';
 import picomatch from 'picomatch';
-import {unwatch, watch as notify} from './../index';
+import {unwatch, watch as notify, add} from './../index';
 
 // Options to configure watch
 interface WatchOptions {
@@ -24,6 +24,7 @@ const mergeObj = <T extends Record<string, any>>(target: T, source: T) => {
 // FsEvent class emits various file system events with optional
 // arguments.
 class FsEvent extends EventEmitter {
+  private watcher: unknown;
   private dirs = new Set<string>();
   private includeMatcher: picomatch.Matcher | (() => boolean);
   private ignoreMatcher;
@@ -75,10 +76,8 @@ class FsEvent extends EventEmitter {
   // This method initiates the native module notify with
   // path to be watched for fs events.
   private watch(paths: Set<string>) {
-    const watchPaths = Array.from(paths);
-
     // Pass the array of paths to be watched to the notify addon
-    const watcher = notify(watchPaths, (err, data) => {
+    this.watcher = notify((err, data) => {
       if (err) {
         // Emits 'error' event upon watch error from native module
         this.emit('error', err);
@@ -96,12 +95,31 @@ class FsEvent extends EventEmitter {
         this.emit('all', event);
       }
     });
-    watchPaths.forEach((path) => {
-      this.unwatchPaths.set(path, () => unwatch(watcher, path));
+    paths.forEach((path) => {
+      this.add(path);
+      this.unwatchPaths.set(path, () => unwatch(this.watcher, path));
     });
   }
 
   // Public methods
+
+  /**
+   * This method adds the specified path to be watched for fs events
+   * after the initial setup of the watcher instance.
+   * @param path path to be watched for fs events
+   */
+  add(path: string) {
+    try {
+      if (typeof path !== 'string' || path === '') {
+        throw new TypeError(
+          `Expected argument type is 'string', but got '${typeof path}'`
+        );
+      }
+      add(this.watcher, path);
+    } catch (error) {
+      this.emit('error', error);
+    }
+  }
 
   /**
    * This method takes one optional argument and will remove the passed in
