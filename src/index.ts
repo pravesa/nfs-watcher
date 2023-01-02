@@ -185,5 +185,4 @@ process.on('SIGINT', () => {
   process.emit('SIGTERM');
 });
 
-// eslint-disable-next-line import/prefer-default-export
-export {watch};
+export = watch;
