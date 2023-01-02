@@ -28,7 +28,6 @@ class FsEvent extends EventEmitter {
   private dirs = new Set<string>();
   private includeMatcher: picomatch.Matcher | (() => boolean);
   private ignoreMatcher;
-  private unwatchPaths = new Map<string, () => void>();
 
   constructor(dirs: string[], options: WatchOptions) {
     super();
@@ -97,7 +96,6 @@ class FsEvent extends EventEmitter {
     });
     paths.forEach((path) => {
       this.add(path);
-      this.unwatchPaths.set(path, () => unwatch(this.watcher, path));
     });
   }
 
@@ -132,18 +130,15 @@ class FsEvent extends EventEmitter {
     if (!path) {
       this.unwatchAll();
       // Unwatch the path if exist
-    } else if (this.unwatchPaths.has(path)) {
-      const func = this.unwatchPaths.get(path);
-      if (typeof func === 'function') {
-        try {
-          func();
-          this.emit('unwatch', 0, `${path} removed from watching`);
-        } catch (error) {
-          this.emit('error', error);
-        }
+    } else if (this.dirs.has(path)) {
+      try {
+        unwatch(this.watcher, path);
+        this.emit('unwatch', 0, `${path} removed from watching`);
+      } catch (error) {
+        this.emit('error', error);
       }
-      // Delete the path from map that was removed from watching
-      this.unwatchPaths.delete(path);
+      // Delete the path from set that was removed from watching
+      this.dirs.delete(path);
     } else {
       this.emit('unwatch', 1, `${path} doesn't exist for unwatching`);
     }
@@ -154,8 +149,8 @@ class FsEvent extends EventEmitter {
    */
   unwatchAll() {
     try {
-      this.unwatchPaths.forEach((func) => {
-        func();
+      this.dirs.forEach((path) => {
+        unwatch(this.watcher, path);
       });
       this.emit('unwatch', 0, 'all paths removed from watching');
     } catch (error) {
