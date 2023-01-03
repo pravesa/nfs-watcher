@@ -1,6 +1,8 @@
 /* eslint-disable no-console */
 import EventEmitter from 'events';
+import path from 'path';
 import picomatch from 'picomatch';
+import lsdirp from 'lsdirp';
 import {unwatch, watch as notify, add} from './../index';
 
 // Options to configure watch
@@ -26,6 +28,7 @@ const mergeObj = <T extends Record<string, any>>(target: T, source: T) => {
 class FsEvent extends EventEmitter {
   private watcher: unknown;
   private dirs = new Set<string>();
+  private ignored = ['**/node_modules', '**/.git', '**/target'];
   private includeMatcher: picomatch.Matcher | (() => boolean);
   private ignoreMatcher;
 
@@ -39,37 +42,49 @@ class FsEvent extends EventEmitter {
 
     mergeObj(opts, options);
 
-    ['**/node_modules/*', '**/.git/*'].forEach((ignored) => {
-      if (opts.ignored?.indexOf(ignored) === -1) {
-        opts.ignored.push(ignored);
-      }
-    });
+    this.ignored.push(...opts.ignored);
 
-    const globs = this.scanGlob(dirs);
+    this.normalizePattern(dirs);
 
-    this.includeMatcher = globs.length !== 0 ? picomatch(globs) : () => true;
-    this.ignoreMatcher = picomatch(opts.ignored);
+    this.includeMatcher = this.createMatcher(dirs);
+    this.ignoreMatcher = this.createMatcher(this.ignored);
 
     this.watch(this.dirs);
   }
 
   // Private Methods
 
-  private scanGlob(patterns: string[]) {
-    const globs: string[] = [];
-
-    patterns.forEach((pattern) => {
-      const {base, glob} = picomatch.scan(pattern);
-      this.dirs.add(base);
-      if (glob !== '') {
-        globs.push(glob);
-      }
+  // To initiate watcher instance on all matching paths, the patterns
+  // are normalized using lsdirp and added to set object. By this way,
+  // duplicate paths are watched only once.
+  private normalizePattern(patterns: string[]) {
+    // Lists only matching directory file type
+    const paths = lsdirp(patterns, {
+      fileType: 'Directory',
+      fullPath: true,
+      ignorePaths: [...this.ignored],
     });
 
-    if (this.dirs.has('.') && this.dirs.size > 1) {
-      this.dirs.delete('.');
-    }
-    return globs;
+    paths.forEach((path) => {
+      this.dirs.add(path);
+    });
+  }
+
+  // This method creates matcher instance from the list of patterns.
+  private createMatcher(patterns: string[]) {
+    // Get the drive letter of the cwd if windows.
+    const driveLetter =
+      process.platform === 'win32' ? process.cwd().slice(0, 2) : '';
+
+    const globPattern = patterns.map((pattern) => {
+      const {base, glob} = picomatch.scan(pattern);
+
+      pattern = driveLetter + path.posix.resolve('.', base === '/' ? '' : base);
+
+      return path.posix.join(pattern, glob || '**');
+    });
+
+    return picomatch(globPattern);
   }
 
   // This method initiates the native module notify with
@@ -97,6 +112,7 @@ class FsEvent extends EventEmitter {
     paths.forEach((path) => {
       this.add(path);
     });
+    this.emit('ready', 'watching for fs events');
   }
 
   // Public methods
@@ -167,7 +183,7 @@ const watch = (dir: string | string[]) => {
     throw new TypeError('Watch dir should be string');
   }
 
-  dir = typeof dir === 'string' ? (dir === '.' ? [process.cwd()] : [dir]) : dir;
+  dir = typeof dir === 'string' ? [dir] : dir;
 
   if (!watcher) {
     watcher = new FsEvent(dir, {});
