@@ -57,7 +57,7 @@
     "prepublishOnly": "yarn test & napi prepublish -t npm"
   },
   "dependencies": {
-    "lsdirp": "^1.2.0",
+    "lsdirp": "^2.2.1",
     "picomatch": "^2.3.1"
   },
   "devDependencies": {
