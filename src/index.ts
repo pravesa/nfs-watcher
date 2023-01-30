@@ -44,7 +44,7 @@ class FsEvent extends EventEmitter {
 
     this.ignored.push(...opts.ignored);
 
-    this.normalizePattern(dirs);
+    this.normalizePattern(dirs, opts.ignored);
 
     this.includeMatcher = this.createMatcher(dirs);
     this.ignoreMatcher = this.createMatcher(this.ignored);
@@ -57,12 +57,13 @@ class FsEvent extends EventEmitter {
   // To initiate watcher instance on all matching paths, the patterns
   // are normalized using lsdirp and added to set object. By this way,
   // duplicate paths are watched only once.
-  private normalizePattern(patterns: string[]) {
+  private normalizePattern(patterns: string[], ignored: string[]) {
     // Lists only matching directory file type
     const paths = lsdirp(patterns, {
       fileType: 'Directory',
       fullPath: true,
-      ignorePaths: [...this.ignored],
+      flatten: true,
+      ignorePaths: [...ignored],
     });
 
     paths.forEach((path) => {
@@ -79,9 +80,10 @@ class FsEvent extends EventEmitter {
     const globPattern = patterns.map((pattern) => {
       const {base, glob} = picomatch.scan(pattern);
 
-      pattern = driveLetter + path.posix.resolve('.', base === '/' ? '' : base);
-
-      return path.posix.join(pattern, glob || '**');
+      return (
+        driveLetter +
+        path.posix.resolve('.', path.posix.join('.', base, glob || '**'))
+      );
     });
 
     return picomatch(globPattern);
