@@ -14,6 +14,8 @@ interface WatchOptions {
   ignored?: string[];
 }
 
+type EventName = 'add' | 'addDir' | 'modify' | 'remove' | 'removeDir';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const mergeObj = <T extends Record<string, any>>(target: T, source: T) => {
   for (const key in source) {
@@ -99,16 +101,13 @@ class FsEvent extends EventEmitter {
         this.emit('error', err);
       }
 
-      const event = JSON.parse(data) as {type: string; paths: string[]};
+      const event = JSON.parse(data) as {kind: string; path: string};
 
-      event.paths[0] = event.paths[0].replace(/\\/g, '/');
+      event.path = event.path.replace(/\\/g, '/');
 
-      if (
-        !this.ignoreMatcher(event.paths[0]) &&
-        this.includeMatcher(event.paths[0])
-      ) {
-        // Emits 'all' event with stringified event from native module
-        this.emit('all', event);
+      if (!this.ignoreMatcher(event.path) && this.includeMatcher(event.path)) {
+        // Emits file system events
+        this.emit(event.kind, event.path);
       }
     });
     paths.forEach((path) => {
@@ -175,11 +174,14 @@ class FsEvent extends EventEmitter {
       this.emit('error', error);
     }
   }
+
+  override on(eventName: EventName, listener: (path: string) => void): this {
+    return super.on(eventName, listener);
+  }
 }
 
 let watcher: FsEvent;
 
-// This function creates single instance of FsEvent with passed in arguments
 const watch = (dir: string | string[]) => {
   if (!(typeof dir === 'string' || Array.isArray(dir))) {
     throw new TypeError('Watch dir should be string');
