@@ -20,7 +20,7 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
 
-    "removeComments": true,
+    "removeComments": false,
     "outDir": "lib",
     "declaration": true,
     "declarationDir": "types"

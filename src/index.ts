@@ -121,7 +121,7 @@ class FsEvent extends EventEmitter {
   /**
    * This method adds the specified path to be watched for fs events
    * after the initial setup of the watcher instance.
-   * @param path path to be watched for fs events
+   * @param path {string} path to be watched for fs events
    */
   add(path: string) {
     try {
@@ -140,7 +140,7 @@ class FsEvent extends EventEmitter {
    * This method takes one optional argument and will remove the passed in
    * path from watching for fs events if it exist. This will remove all
    * paths from watching if no argument is passed (similar to `unwatchAll()`).
-   * @param path file or dir to be unwatched (optional)
+   * @param path {string} [] file or dir to be unwatched (optional)
    */
   unwatch(path?: string) {
     // Call unwatchAll() if argument is empty
@@ -175,6 +175,10 @@ class FsEvent extends EventEmitter {
     }
   }
 
+  /**
+   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir'}
+   * @param listener {(path: string) => void}
+   */
   override on(eventName: EventName, listener: (path: string) => void): this {
     return super.on(eventName, listener);
   }
@@ -182,6 +186,11 @@ class FsEvent extends EventEmitter {
 
 let watcher: FsEvent;
 
+/**
+ * Creates a singleton FsEvent instance
+ * @param dir {string | string[]}
+ * @returns {FsEvent} FsEvent instance
+ */
 const watch = (dir: string | string[]) => {
   if (!(typeof dir === 'string' || Array.isArray(dir))) {
     throw new TypeError('Watch dir should be string');
