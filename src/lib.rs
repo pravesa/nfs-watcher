@@ -40,7 +40,7 @@ impl PartialEq for FsEvent {
   }
 
   fn ne(&self, other: &Self) -> bool {
-    self.kind != other.kind && self.path != other.path || self.ts >= other.ts + 50
+    self.kind != other.kind || self.path != other.path || self.ts >= other.ts + 50
   }
 }
 
