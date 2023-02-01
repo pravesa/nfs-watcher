@@ -3,7 +3,7 @@ import EventEmitter from 'events';
 import path from 'path';
 import picomatch from 'picomatch';
 import lsdirp from 'lsdirp';
-import {unwatch, watch as notify, add} from './../index';
+import {unwatch, watch as notify, add} from './../index.js';
 
 // Options to configure watch
 interface WatchOptions {
@@ -214,4 +214,4 @@ process.on('SIGINT', () => {
   process.emit('SIGTERM');
 });
 
-export = watch;
+export default watch;

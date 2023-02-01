@@ -18,6 +18,7 @@
     "url": "https://github.com/pravesa/nfs-watcher/issues",
     "email": "praveen747757@gmail.com"
   },
+  "type": "module",
   "license": "MIT",
   "author": "Praveen Saravanan",
   "repository": "https://github.com/pravesa/nfs-watcher.git",

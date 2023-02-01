@@ -1,7 +1,11 @@
-const {existsSync, readFileSync} = require('fs');
-const {join} = require('path');
+import {existsSync, readFileSync} from 'fs';
+import {join} from 'path';
+import {createRequire} from 'module';
+
+const require = createRequire(import.meta.url);
 
 const {platform, arch} = process;
+const cwd = process.cwd();
 
 let nativeBinding = null;
 let localFileExisted = false;
@@ -30,7 +34,7 @@ switch (platform) {
     switch (arch) {
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.android-arm64.node')
+          join(cwd, 'nfs-watcher.android-arm64.node')
         );
         try {
           if (localFileExisted) {
@@ -44,7 +48,7 @@ switch (platform) {
         break;
       case 'arm':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.android-arm-eabi.node')
+          join(cwd, 'nfs-watcher.android-arm-eabi.node')
         );
         try {
           if (localFileExisted) {
@@ -64,7 +68,7 @@ switch (platform) {
     switch (arch) {
       case 'x64':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.win32-x64-msvc.node')
+          join(cwd, 'nfs-watcher.win32-x64-msvc.node')
         );
         try {
           if (localFileExisted) {
@@ -78,7 +82,7 @@ switch (platform) {
         break;
       case 'ia32':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.win32-ia32-msvc.node')
+          join(cwd, 'nfs-watcher.win32-ia32-msvc.node')
         );
         try {
           if (localFileExisted) {
@@ -92,7 +96,7 @@ switch (platform) {
         break;
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.win32-arm64-msvc.node')
+          join(cwd, 'nfs-watcher.win32-arm64-msvc.node')
         );
         try {
           if (localFileExisted) {
@@ -110,7 +114,7 @@ switch (platform) {
     break;
   case 'darwin':
     localFileExisted = existsSync(
-      join(__dirname, 'nfs-watcher.darwin-universal.node')
+      join(cwd, 'nfs-watcher.darwin-universal.node')
     );
     try {
       if (localFileExisted) {
@@ -124,9 +128,7 @@ switch (platform) {
     }
     switch (arch) {
       case 'x64':
-        localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.darwin-x64.node')
-        );
+        localFileExisted = existsSync(join(cwd, 'nfs-watcher.darwin-x64.node'));
         try {
           if (localFileExisted) {
             nativeBinding = require('./nfs-watcher.darwin-x64.node');
@@ -139,7 +141,7 @@ switch (platform) {
         break;
       case 'arm64':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.darwin-arm64.node')
+          join(cwd, 'nfs-watcher.darwin-arm64.node')
         );
         try {
           if (localFileExisted) {
@@ -159,9 +161,7 @@ switch (platform) {
     if (arch !== 'x64') {
       throw new Error(`Unsupported architecture on FreeBSD: ${arch}`);
     }
-    localFileExisted = existsSync(
-      join(__dirname, 'nfs-watcher.freebsd-x64.node')
-    );
+    localFileExisted = existsSync(join(cwd, 'nfs-watcher.freebsd-x64.node'));
     try {
       if (localFileExisted) {
         nativeBinding = require('./nfs-watcher.freebsd-x64.node');
@@ -177,7 +177,7 @@ switch (platform) {
       case 'x64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'nfs-watcher.linux-x64-musl.node')
+            join(cwd, 'nfs-watcher.linux-x64-musl.node')
           );
           try {
             if (localFileExisted) {
@@ -190,7 +190,7 @@ switch (platform) {
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'nfs-watcher.linux-x64-gnu.node')
+            join(cwd, 'nfs-watcher.linux-x64-gnu.node')
           );
           try {
             if (localFileExisted) {
@@ -206,7 +206,7 @@ switch (platform) {
       case 'arm64':
         if (isMusl()) {
           localFileExisted = existsSync(
-            join(__dirname, 'nfs-watcher.linux-arm64-musl.node')
+            join(cwd, 'nfs-watcher.linux-arm64-musl.node')
           );
           try {
             if (localFileExisted) {
@@ -219,7 +219,7 @@ switch (platform) {
           }
         } else {
           localFileExisted = existsSync(
-            join(__dirname, 'nfs-watcher.linux-arm64-gnu.node')
+            join(cwd, 'nfs-watcher.linux-arm64-gnu.node')
           );
           try {
             if (localFileExisted) {
@@ -234,7 +234,7 @@ switch (platform) {
         break;
       case 'arm':
         localFileExisted = existsSync(
-          join(__dirname, 'nfs-watcher.linux-arm-gnueabihf.node')
+          join(cwd, 'nfs-watcher.linux-arm-gnueabihf.node')
         );
         try {
           if (localFileExisted) {
@@ -261,8 +261,4 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`);
 }
 
-const {watch, add, unwatch} = nativeBinding;
-
-module.exports.watch = watch;
-module.exports.add = add;
-module.exports.unwatch = unwatch;
+export const {watch, add, unwatch} = nativeBinding;
