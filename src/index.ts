@@ -101,11 +101,25 @@ class FsEvent extends EventEmitter {
         this.emit('error', err);
       }
 
-      const event = JSON.parse(data) as {kind: string; path: string};
+      const event = JSON.parse(data) as {kind: EventName; path: string};
 
       event.path = event.path.replace(/\\/g, '/');
 
       if (!this.ignoreMatcher(event.path) && this.includeMatcher(event.path)) {
+        switch (event.kind) {
+          case 'addDir':
+            this.dirs.add(event.path);
+            this.add(event.path);
+            break;
+          case 'remove':
+            if (this.dirs.has(event.path)) {
+              event.kind = 'removeDir';
+              this.unwatch(event.path);
+            }
+            break;
+          default:
+            break;
+        }
         // Emits file system events
         this.emit(event.kind, event.path);
       }
