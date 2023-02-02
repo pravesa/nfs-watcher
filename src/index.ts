@@ -56,7 +56,7 @@ class FsEvent extends EventEmitter {
     this.includeMatcher = this.createMatcher(dirs);
     this.ignoreMatcher = this.createMatcher(this.ignored);
 
-    this.watch(opts.usePolling, this.dirs);
+    this.watch(opts, this.dirs);
   }
 
   // Private Methods
@@ -98,37 +98,46 @@ class FsEvent extends EventEmitter {
 
   // This method initiates the native module notify with
   // path to be watched for fs events.
-  private watch(usePolling: boolean, paths: Set<string>) {
-    // Pass the array of paths to be watched to the notify addon
-    this.watcher = notify(usePolling, (err, data) => {
-      if (err) {
-        // Emits 'error' event upon watch error from native module
-        this.emit('error', err);
-      }
+  private watch(opts: WatchOptions, paths: Set<string>) {
+    const {usePolling} = opts;
 
-      const event = JSON.parse(data) as {kind: EventName; path: string};
-
-      event.path = event.path.replace(/\\/g, '/');
-
-      if (!this.ignoreMatcher(event.path) && this.includeMatcher(event.path)) {
-        switch (event.kind) {
-          case 'addDir':
-            this.dirs.add(event.path);
-            this.add(event.path);
-            break;
-          case 'remove':
-            if (this.dirs.has(event.path)) {
-              event.kind = 'removeDir';
-              this.unwatch(event.path);
-            }
-            break;
-          default:
-            break;
+    // Pass the watch options as string and array of paths to be watched
+    // to the notify addon
+    this.watcher = notify(
+      JSON.stringify({use_polling: usePolling}),
+      (err, data) => {
+        if (err) {
+          // Emits 'error' event upon watch error from native module
+          this.emit('error', err);
         }
-        // Emits file system events
-        this.emit(event.kind, event.path);
+
+        const event = JSON.parse(data) as {kind: EventName; path: string};
+
+        event.path = event.path.replace(/\\/g, '/');
+
+        if (
+          !this.ignoreMatcher(event.path) &&
+          this.includeMatcher(event.path)
+        ) {
+          switch (event.kind) {
+            case 'addDir':
+              this.dirs.add(event.path);
+              this.add(event.path);
+              break;
+            case 'remove':
+              if (this.dirs.has(event.path)) {
+                event.kind = 'removeDir';
+                this.unwatch(event.path);
+              }
+              break;
+            default:
+              break;
+          }
+          // Emits file system events
+          this.emit(event.kind, event.path);
+        }
       }
-    });
+    );
     paths.forEach((path) => {
       this.add(path);
     });

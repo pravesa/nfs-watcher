@@ -13,7 +13,7 @@ use napi::{
   threadsafe_function::{
     ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction, ThreadsafeFunctionCallMode,
   },
-  JsBoolean, JsExternal, JsString, JsUndefined,
+  JsExternal, JsString, JsUndefined,
 };
 use notify::{
   event::{ModifyKind, RenameMode},
@@ -51,6 +51,20 @@ impl PartialEq for FsEvent {
   }
 }
 
+// Options to configure watcher instance
+#[derive(Serialize, Deserialize, Debug)]
+struct WatchOptions {
+  use_polling: bool,
+}
+
+// Implement default value for watchoptions. This will be
+// used if there is an error parsing json.
+impl Default for WatchOptions {
+  fn default() -> Self {
+    Self { use_polling: false }
+  }
+}
+
 // Filtering dirs using glob patterns for watching can also be done by using globwalk crate.
 // But it will result in bigger output size.
 //
@@ -76,9 +90,9 @@ impl PartialEq for FsEvent {
 /// Initiates recommended watcher instance with threadsafe callback function from
 /// node js main thread and call the callback on fs events. This function returns
 /// watcher instance which can be used to add paths to be watched for fs events.
-#[napi(ts_args_type = "use_poll: boolean, callback: (err: null | Error, event: string) => void")]
-pub fn watch(env: Env, use_poll: JsBoolean, callback: JsFunction) -> Result<JsExternal> {
-  let use_poll = use_poll.get_value().unwrap_or_default();
+#[napi(ts_args_type = "options: string, callback: (err: null | Error, event: string) => void")]
+pub fn watch(env: Env, opts: JsString, callback: JsFunction) -> Result<JsExternal> {
+  let options: WatchOptions = serde_json::from_str(opts.into_utf8()?.as_str()?).unwrap_or_default();
 
   // Javascript callback to be invoked for fs events
   let tsfn: ThreadsafeFunction<FsEvent, ErrorStrategy::CalleeHandled> = callback
@@ -139,9 +153,9 @@ pub fn watch(env: Env, use_poll: JsBoolean, callback: JsFunction) -> Result<JsEx
     }
   };
 
-  // Creates dynamic watcher with javascript callback as an event handler. If the use_poll
+  // Creates dynamic watcher with javascript callback as an event handler. If the use_polling
   // option is true, creates poll watcher instance else recommended watcher.
-  let watcher: Box<dyn Watcher> = if use_poll {
+  let watcher: Box<dyn Watcher> = if options.use_polling {
     Box::new(
       PollWatcher::new(
         move |ev| event_handler(ev),
