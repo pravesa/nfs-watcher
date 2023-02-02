@@ -16,8 +16,8 @@ use napi::{
   JsExternal, JsString, JsUndefined,
 };
 use notify::{
-  event::ModifyKind, recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode,
-  Watcher,
+  event::{ModifyKind, RenameMode},
+  recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
 };
 use serde::{Deserialize, Serialize};
 
@@ -106,7 +106,13 @@ pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
       Ok(FsEvent::new(
         match evt.kind {
           EventKind::Create(_) => String::from("add") + dir_suffix,
-          EventKind::Modify(ModifyKind::Data(_)) => String::from("modify"),
+          EventKind::Modify(kind) => match kind {
+            ModifyKind::Data(_) => String::from("modify"),
+            // Handle rename event as remove and add event
+            ModifyKind::Name(RenameMode::From) => String::from("remove") + dir_suffix,
+            ModifyKind::Name(RenameMode::To) => String::from("add") + dir_suffix,
+            _ => String::from("other"),
+          },
           EventKind::Remove(_) => String::from("remove") + dir_suffix,
           _ => String::from("other"),
         },
