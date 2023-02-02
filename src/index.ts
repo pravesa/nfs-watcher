@@ -14,6 +14,7 @@ interface WatchOptions {
   ignored?: string[];
 }
 
+// List of events that will be emitted by the watcher
 type EventName = 'add' | 'addDir' | 'modify' | 'remove' | 'removeDir';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

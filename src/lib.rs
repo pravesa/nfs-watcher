@@ -15,7 +15,10 @@ use napi::{
   },
   JsExternal, JsString, JsUndefined,
 };
-use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{
+  event::ModifyKind, recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode,
+  Watcher,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -103,7 +106,7 @@ pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
       Ok(FsEvent::new(
         match evt.kind {
           EventKind::Create(_) => String::from("add") + dir_suffix,
-          EventKind::Modify(_) => String::from("modify"),
+          EventKind::Modify(ModifyKind::Data(_)) => String::from("modify"),
           EventKind::Remove(_) => String::from("remove") + dir_suffix,
           _ => String::from("other"),
         },
