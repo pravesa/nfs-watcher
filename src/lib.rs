@@ -43,6 +43,10 @@ impl PartialEq for FsEvent {
   }
 
   fn ne(&self, other: &Self) -> bool {
+    // Don't invoke callback function if the event kind is other
+    if self.kind == "other" {
+      return false;
+    }
     self.kind != other.kind || self.path != other.path || self.ts >= other.ts + 50
   }
 }
