@@ -55,13 +55,17 @@ impl PartialEq for FsEvent {
 #[derive(Serialize, Deserialize, Debug)]
 struct WatchOptions {
   use_polling: bool,
+  poll_interval: u64,
 }
 
 // Implement default value for watchoptions. This will be
 // used if there is an error parsing json.
 impl Default for WatchOptions {
   fn default() -> Self {
-    Self { use_polling: false }
+    Self {
+      use_polling: false,
+      poll_interval: 4,
+    }
   }
 }
 
@@ -159,7 +163,7 @@ pub fn watch(env: Env, opts: JsString, callback: JsFunction) -> Result<JsExterna
     Box::new(
       PollWatcher::new(
         move |ev| event_handler(ev),
-        Config::default().with_poll_interval(Duration::from_secs(4)),
+        Config::default().with_poll_interval(Duration::from_secs(options.poll_interval)),
       )
       .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?,
     )

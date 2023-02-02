@@ -12,9 +12,15 @@ interface WatchOptions {
    * used to it.
    * @default '["**\/node_modules", "**\/.git"]' */
   ignored?: string[];
-  /** If true, poll watcher will be used.
+  /** If true, poll watcher will be used. Use this feature when there is no
+   * native watcher is available. eg: docker.
    *  @default false */
   usePolling?: boolean;
+  /** Set the interval in seconds at which the file system should be polled
+   * for fs events. keep the value above 1 sec to avoid frequent polling.
+   * setting negative value will set usePolling option false.
+   * @default 4 */
+  pollInterval?: number;
 }
 
 // List of events that will be emitted by the watcher
@@ -45,6 +51,7 @@ class FsEvent extends EventEmitter {
     const opts: Required<WatchOptions> = {
       ignored: [],
       usePolling: false,
+      pollInterval: 4,
     };
 
     mergeObj(opts, options);
@@ -99,12 +106,12 @@ class FsEvent extends EventEmitter {
   // This method initiates the native module notify with
   // path to be watched for fs events.
   private watch(opts: WatchOptions, paths: Set<string>) {
-    const {usePolling} = opts;
+    const {usePolling, pollInterval} = opts;
 
     // Pass the watch options as string and array of paths to be watched
     // to the notify addon
     this.watcher = notify(
-      JSON.stringify({use_polling: usePolling}),
+      JSON.stringify({use_polling: usePolling, poll_interval: pollInterval}),
       (err, data) => {
         if (err) {
           // Emits 'error' event upon watch error from native module
@@ -219,6 +226,7 @@ let watcher: FsEvent;
  * @typedef {object} WatchOptions
  * @property {string[]} ignored Ignores added files or directories from watching
  * @property {boolean} usePolling If true, poll watcher will be used
+ * @property {number} pollInterval Set the interval in seconds at which the file system should be polled for fs events
  */
 
 /**
