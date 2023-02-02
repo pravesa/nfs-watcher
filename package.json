@@ -39,7 +39,7 @@
         "aarch64-unknown-linux-musl",
         "aarch64-pc-windows-msvc",
         "x86_64-unknown-linux-musl",
-        "x86_64-unknown-freebsd",
+        "i686-pc-windows-msvc",
         "universal-apple-darwin"
       ]
     }
@@ -50,7 +50,7 @@
     "build:debug": "napi build --platform",
     "universal": "napi universal",
     "version": "napi version",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint .",
     "lint:fix": "yarn lint --fix",
     "prepare": "husky install",
