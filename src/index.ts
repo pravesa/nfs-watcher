@@ -3,6 +3,7 @@ import EventEmitter from 'events';
 import path from 'path';
 import picomatch from 'picomatch';
 import lsdirp from 'lsdirp';
+import {statSync} from 'fs';
 import {unwatch, watch as notify, add} from './../index.js';
 
 // Options to configure watch
@@ -40,6 +41,7 @@ const mergeObj = <T extends Record<string, any>>(target: T, source: T) => {
 class FsEvent extends EventEmitter {
   private watcher: unknown;
   private dirs = new Set<string>();
+  private files = new Set<string>();
   private ignored = ['**/node_modules', '**/.git', '**/target'];
   private includeMatcher: picomatch.Matcher | (() => boolean);
   private ignoreMatcher;
@@ -63,7 +65,7 @@ class FsEvent extends EventEmitter {
     this.includeMatcher = this.createMatcher(dirs);
     this.ignoreMatcher = this.createMatcher(this.ignored);
 
-    this.watch(opts, this.dirs);
+    this.watch(opts, this.dirs, this.files);
   }
 
   // Private Methods
@@ -85,6 +87,10 @@ class FsEvent extends EventEmitter {
     });
   }
 
+  private isFile(path: string) {
+    return statSync(path).isFile();
+  }
+
   // This method creates matcher instance from the list of patterns.
   private createMatcher(patterns: string[]) {
     // Get the drive letter of the cwd if windows.
@@ -94,10 +100,16 @@ class FsEvent extends EventEmitter {
     const globPattern = patterns.map((pattern) => {
       const {base, glob} = picomatch.scan(pattern);
 
-      return (
-        driveLetter +
-        path.posix.resolve('.', path.posix.join('.', base, glob || '**'))
-      );
+      const basePath =
+        driveLetter + path.posix.resolve('.', path.posix.join('.', base));
+
+      if (glob === '') {
+        if (this.isFile(basePath)) {
+          this.files.add(basePath);
+          return basePath;
+        }
+      }
+      return path.posix.join(basePath, glob || '**');
     });
 
     return picomatch(globPattern);
@@ -105,7 +117,7 @@ class FsEvent extends EventEmitter {
 
   // This method initiates the native module notify with
   // path to be watched for fs events.
-  private watch(opts: WatchOptions, paths: Set<string>) {
+  private watch(opts: WatchOptions, dirs: Set<string>, files: Set<string>) {
     const {usePolling, pollInterval} = opts;
 
     // Pass the watch options as string and array of paths to be watched
@@ -145,7 +157,10 @@ class FsEvent extends EventEmitter {
         }
       }
     );
-    paths.forEach((path) => {
+    dirs.forEach((path) => {
+      this.add(path);
+    });
+    files.forEach((path) => {
       this.add(path);
     });
     this.emit('ready', 'watching for fs events');
@@ -166,6 +181,13 @@ class FsEvent extends EventEmitter {
         );
       }
       add(this.watcher, path);
+
+      // Add the path to the respective set for unwatching the path later.
+      if (this.isFile(path)) {
+        this.files.add(path);
+      } else {
+        this.dirs.add(path);
+      }
     } catch (error) {
       this.emit('error', error);
     }
@@ -178,19 +200,25 @@ class FsEvent extends EventEmitter {
    * @param path {string} [] file or dir to be unwatched (optional)
    */
   unwatch(path?: string) {
-    // Call unwatchAll() if argument is empty
-    if (!path) {
-      this.unwatchAll();
-      // Unwatch the path if exist
-    } else if (this.dirs.has(path)) {
+    const unwatchPath = (path: string) => {
       try {
         unwatch(this.watcher, path);
         this.emit('unwatch', 0, `${path} removed from watching`);
       } catch (error) {
         this.emit('error', error);
       }
-      // Delete the path from set that was removed from watching
+    };
+
+    // Call unwatchAll() if argument is empty
+    if (!path) {
+      this.unwatchAll();
+      // Unwatch the path if exist
+    } else if (this.dirs.has(path)) {
+      unwatchPath(path);
       this.dirs.delete(path);
+    } else if (this.files.has(path)) {
+      unwatchPath(path);
+      this.files.delete(path);
     } else {
       this.emit('unwatch', 1, `${path} doesn't exist for unwatching`);
     }
@@ -202,6 +230,9 @@ class FsEvent extends EventEmitter {
   unwatchAll() {
     try {
       this.dirs.forEach((path) => {
+        unwatch(this.watcher, path);
+      });
+      this.files.forEach((path) => {
         unwatch(this.watcher, path);
       });
       this.emit('unwatch', 0, 'all paths removed from watching');

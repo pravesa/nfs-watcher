@@ -130,10 +130,10 @@ pub fn watch(env: Env, opts: JsString, callback: JsFunction) -> Result<JsExterna
         match evt.kind {
           EventKind::Create(_) => String::from("add") + dir_suffix,
           EventKind::Modify(kind) => match kind {
-            ModifyKind::Data(_) => String::from("modify"),
             // Handle rename event as remove and add event
             ModifyKind::Name(RenameMode::From) => String::from("remove") + dir_suffix,
             ModifyKind::Name(RenameMode::To) => String::from("add") + dir_suffix,
+            ModifyKind::Any if path.is_file() => String::from("modify"),
             _ => String::from("other"),
           },
           EventKind::Remove(_) => String::from("remove") + dir_suffix,
