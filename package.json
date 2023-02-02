@@ -1,6 +1,6 @@
 {
   "name": "nfs-watcher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Native file system watcher using notify crate from rust via Node-API",
   "keywords": [
     "fswatch",
@@ -55,7 +55,7 @@
     "lint:fix": "yarn lint --fix",
     "prepare": "husky install",
     "preversion": "yarn lint:fix",
-    "prepublishOnly": "yarn test & napi prepublish -t npm"
+    "prepublishOnly": "yarn tsc & napi prepublish -t npm"
   },
   "dependencies": {
     "lsdirp": "^2.2.1",
