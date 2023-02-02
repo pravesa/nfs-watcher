@@ -12,6 +12,9 @@ interface WatchOptions {
    * used to it.
    * @default '["**\/node_modules", "**\/.git"]' */
   ignored?: string[];
+  /** If true, poll watcher will be used.
+   *  @default false */
+  usePolling?: boolean;
 }
 
 // List of events that will be emitted by the watcher
@@ -41,6 +44,7 @@ class FsEvent extends EventEmitter {
     // Default lsdirp options
     const opts: Required<WatchOptions> = {
       ignored: [],
+      usePolling: false,
     };
 
     mergeObj(opts, options);
@@ -52,7 +56,7 @@ class FsEvent extends EventEmitter {
     this.includeMatcher = this.createMatcher(dirs);
     this.ignoreMatcher = this.createMatcher(this.ignored);
 
-    this.watch(this.dirs);
+    this.watch(opts.usePolling, this.dirs);
   }
 
   // Private Methods
@@ -94,9 +98,9 @@ class FsEvent extends EventEmitter {
 
   // This method initiates the native module notify with
   // path to be watched for fs events.
-  private watch(paths: Set<string>) {
+  private watch(usePolling: boolean, paths: Set<string>) {
     // Pass the array of paths to be watched to the notify addon
-    this.watcher = notify((err, data) => {
+    this.watcher = notify(usePolling, (err, data) => {
       if (err) {
         // Emits 'error' event upon watch error from native module
         this.emit('error', err);
@@ -202,11 +206,19 @@ class FsEvent extends EventEmitter {
 let watcher: FsEvent;
 
 /**
+ * Options to configure watch
+ * @typedef {object} WatchOptions
+ * @property {string[]} ignored Ignores added files or directories from watching
+ * @property {boolean} usePolling If true, poll watcher will be used
+ */
+
+/**
  * Creates a singleton FsEvent instance
- * @param dir {string | string[]}
+ * @param dir {string | string[]} files or dirs to be watched
+ * @param options {WatchOptions} options to configure watcher
  * @returns {FsEvent} FsEvent instance
  */
-const watch = (dir: string | string[]) => {
+const watch = (dir: string | string[], options: WatchOptions) => {
   if (!(typeof dir === 'string' || Array.isArray(dir))) {
     throw new TypeError('Watch dir should be string');
   }
@@ -214,7 +226,7 @@ const watch = (dir: string | string[]) => {
   dir = typeof dir === 'string' ? [dir] : dir;
 
   if (!watcher) {
-    watcher = new FsEvent(dir, {});
+    watcher = new FsEvent(dir, options);
   }
   return watcher;
 };

@@ -9,6 +9,7 @@
  * watcher instance which can be used to add paths to be watched for fs events.
  */
 export function watch(
+  use_poll: boolean,
   callback: (err: null | Error, event: string) => void
 ): JsExternal;
 /** This function takes in watcher instance and a path to be watched for events. */

@@ -5,7 +5,7 @@ extern crate napi_derive;
 // extern crate globwalk;
 
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 // use globwalk::FileType;
 use napi::{
@@ -13,11 +13,11 @@ use napi::{
   threadsafe_function::{
     ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction, ThreadsafeFunctionCallMode,
   },
-  JsExternal, JsString, JsUndefined,
+  JsBoolean, JsExternal, JsString, JsUndefined,
 };
 use notify::{
   event::{ModifyKind, RenameMode},
-  recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher,
+  Config, Event, EventKind, PollWatcher, RecommendedWatcher, RecursiveMode, Watcher,
 };
 use serde::{Deserialize, Serialize};
 
@@ -76,8 +76,10 @@ impl PartialEq for FsEvent {
 /// Initiates recommended watcher instance with threadsafe callback function from
 /// node js main thread and call the callback on fs events. This function returns
 /// watcher instance which can be used to add paths to be watched for fs events.
-#[napi(ts_args_type = "callback: (err: null | Error, event: string) => void")]
-pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
+#[napi(ts_args_type = "use_poll: boolean, callback: (err: null | Error, event: string) => void")]
+pub fn watch(env: Env, use_poll: JsBoolean, callback: JsFunction) -> Result<JsExternal> {
+  let use_poll = use_poll.get_value().unwrap_or_default();
+
   // Javascript callback to be invoked for fs events
   let tsfn: ThreadsafeFunction<FsEvent, ErrorStrategy::CalleeHandled> = callback
     .create_threadsafe_function(0, |cx: ThreadSafeCallContext<FsEvent>| {
@@ -91,8 +93,7 @@ pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
   let mut evt: std::result::Result<FsEvent, notify::Error> =
     Ok(FsEvent::new(String::new(), PathBuf::new(), 0));
 
-  // Creates recommended watcher with javascript callback as an event handler
-  let watcher = recommended_watcher(move |ev: notify::Result<Event>| {
+  let mut event_handler = move |ev: notify::Result<Event>| {
     // Mutable reference to previous event
     let prev_ev = &mut evt;
 
@@ -136,8 +137,24 @@ pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
         ThreadsafeFunctionCallMode::NonBlocking,
       );
     }
-  })
-  .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?;
+  };
+
+  // Creates dynamic watcher with javascript callback as an event handler. If the use_poll
+  // option is true, creates poll watcher instance else recommended watcher.
+  let watcher: Box<dyn Watcher> = if use_poll {
+    Box::new(
+      PollWatcher::new(
+        move |ev| event_handler(ev),
+        Config::default().with_poll_interval(Duration::from_secs(4)),
+      )
+      .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?,
+    )
+  } else {
+    Box::new(
+      RecommendedWatcher::new(move |ev| event_handler(ev), Config::default())
+        .map_err(|e| Error::new(Status::GenericFailure, format!("{}", e)))?,
+    )
+  };
 
   env.create_external(watcher, None)
 }
@@ -146,7 +163,7 @@ pub fn watch(env: Env, callback: JsFunction) -> Result<JsExternal> {
 #[napi]
 pub fn add(env: Env, ext: JsExternal, dir: JsString) -> Result<JsUndefined> {
   let dir = dir.into_utf8()?;
-  let watcher = env.get_value_external::<RecommendedWatcher>(&ext)?;
+  let watcher = env.get_value_external::<Box<dyn Watcher>>(&ext)?;
 
   watcher
     .watch(Path::new(dir.as_str()?), RecursiveMode::NonRecursive)
@@ -159,7 +176,7 @@ pub fn add(env: Env, ext: JsExternal, dir: JsString) -> Result<JsUndefined> {
 #[napi]
 pub fn unwatch(env: Env, ext: JsExternal, dir: JsString) -> Result<JsUndefined> {
   let dir = dir.into_utf8()?;
-  let watcher = env.get_value_external::<RecommendedWatcher>(&ext)?;
+  let watcher = env.get_value_external::<Box<dyn Watcher>>(&ext)?;
 
   watcher
     .unwatch(Path::new(dir.as_str()?))
