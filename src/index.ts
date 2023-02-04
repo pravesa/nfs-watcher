@@ -43,8 +43,9 @@ class FsEvent extends EventEmitter {
   private dirs = new Set<string>();
   private files = new Set<string>();
   private ignored = ['**/node_modules', '**/.git', '**/target'];
-  private includeMatcher: picomatch.Matcher | (() => boolean);
-  private ignoreMatcher;
+  private globPatterns = new Map<string, Set<string>>();
+  private includePatterns = new Map<string, picomatch.Matcher>();
+  private ignorePatterns = new Map<string, picomatch.Matcher>();
 
   constructor(dirs: string[], options: WatchOptions) {
     super();
@@ -62,8 +63,8 @@ class FsEvent extends EventEmitter {
 
     this.normalizePattern(dirs, opts.ignored);
 
-    this.includeMatcher = this.createMatcher(dirs);
-    this.ignoreMatcher = this.createMatcher(this.ignored);
+    this.createMatcher(dirs, this.includePatterns);
+    this.createMatcher(this.ignored, this.ignorePatterns);
 
     this.watch(opts, this.dirs, this.files);
   }
@@ -91,28 +92,66 @@ class FsEvent extends EventEmitter {
     return statSync(path).isFile();
   }
 
+  private patternMatcher(
+    path: string,
+    matchers: Map<string, picomatch.Matcher>
+  ) {
+    for (const matcher of matchers) {
+      if (path.startsWith(matcher[0])) {
+        const result = matcher[1](path);
+        if (result) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private isMatch(path: string) {
+    return this.patternMatcher(path, this.includePatterns);
+  }
+
+  private isNotIgnored(path: string) {
+    return !this.patternMatcher(path, this.ignorePatterns);
+  }
+
   // This method creates matcher instance from the list of patterns.
-  private createMatcher(patterns: string[]) {
+  private createMatcher(
+    patterns: string[],
+    matchers: Map<string, picomatch.Matcher>
+  ) {
     // Get the drive letter of the cwd if windows.
     const driveLetter =
       process.platform === 'win32' ? process.cwd().slice(0, 2) : '';
 
-    const globPattern = patterns.map((pattern) => {
-      const {base, glob} = picomatch.scan(pattern);
+    patterns.forEach((pattern) => {
+      let {base, glob} = picomatch.scan(pattern);
 
-      const basePath =
-        driveLetter + path.posix.resolve('.', path.posix.join('.', base));
+      base = driveLetter + path.posix.resolve('.', path.posix.join('.', base));
+
+      const globs = this.globPatterns.get(base);
 
       if (glob === '') {
-        if (this.isFile(basePath)) {
-          this.files.add(basePath);
-          return basePath;
+        if (this.isFile(base)) {
+          this.files.add(base);
+        } else {
+          glob = '**';
         }
       }
-      return path.posix.join(basePath, glob || '**');
-    });
 
-    return picomatch(globPattern);
+      pattern = path.posix.join(base, glob);
+
+      if (globs) {
+        globs.add(pattern);
+      } else {
+        this.globPatterns.set(base, new Set<string>().add(pattern));
+      }
+
+      matchers.set(
+        base,
+        picomatch(Array.from(this.globPatterns.get(base) ?? []))
+      );
+    });
   }
 
   // This method initiates the native module notify with
@@ -134,10 +173,7 @@ class FsEvent extends EventEmitter {
 
         event.path = event.path.replace(/\\/g, '/');
 
-        if (
-          !this.ignoreMatcher(event.path) &&
-          this.includeMatcher(event.path)
-        ) {
+        if (this.isNotIgnored(event.path) && this.isMatch(event.path)) {
           switch (event.kind) {
             case 'addDir':
               this.dirs.add(event.path);
