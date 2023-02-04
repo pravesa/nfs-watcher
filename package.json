@@ -58,7 +58,7 @@
     "prepublishOnly": "yarn tsc & napi prepublish -t npm"
   },
   "dependencies": {
-    "lsdirp": "^2.2.1",
+    "lsdirp": "^2.2.2",
     "picomatch": "^2.3.1"
   },
   "devDependencies": {
