@@ -43,9 +43,8 @@ class FsEvent extends EventEmitter {
   private dirs = new Set<string>();
   private files = new Set<string>();
   private ignored = ['**/node_modules', '**/.git', '**/target'];
-  private globPatterns = new Map<string, Set<string>>();
-  private includePatterns = new Map<string, picomatch.Matcher>();
-  private ignorePatterns = new Map<string, picomatch.Matcher>();
+  private includePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
+  private ignorePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
 
   constructor(dirs: string[], options: WatchOptions) {
     super();
@@ -61,12 +60,11 @@ class FsEvent extends EventEmitter {
 
     this.ignored.push(...opts.ignored);
 
-    this.normalizePattern(dirs, opts.ignored);
+    this.watch(opts);
 
-    this.createMatcher(dirs, this.includePatterns);
-    this.createMatcher(this.ignored, this.ignorePatterns);
-
-    this.watch(opts, this.dirs, this.files);
+    this.createMatcher(this.ignored, this.ignorePatterns, true);
+    this.add(dirs);
+    this.emit('ready', 'watching for fs events');
   }
 
   // Private Methods
@@ -74,31 +72,32 @@ class FsEvent extends EventEmitter {
   // To initiate watcher instance on all matching paths, the patterns
   // are normalized using lsdirp and added to set object. By this way,
   // duplicate paths are watched only once.
-  private normalizePattern(patterns: string[], ignored: string[]) {
+  private normalizePattern(patterns: string[]) {
     // Lists only matching directory file type
-    const paths = lsdirp(patterns, {
+    return lsdirp(patterns, {
       fileType: 'Directory',
       fullPath: true,
       flatten: true,
-      ignorePaths: [...ignored],
-    });
-
-    paths.forEach((path) => {
-      this.dirs.add(path);
+      ignorePaths: [...this.ignored],
     });
   }
 
   private isFile(path: string) {
-    return statSync(path).isFile();
+    try {
+      return statSync(path).isFile();
+    } catch (error) {
+      this.emit('error', error);
+      return false;
+    }
   }
 
   private patternMatcher(
     path: string,
-    matchers: Map<string, picomatch.Matcher>
+    matchers: Map<string, [Set<string>, picomatch.Matcher]>
   ) {
     for (const matcher of matchers) {
       if (path.startsWith(matcher[0])) {
-        const result = matcher[1](path);
+        const result = matcher[1][1](path);
         if (result) {
           return true;
         }
@@ -118,45 +117,60 @@ class FsEvent extends EventEmitter {
   // This method creates matcher instance from the list of patterns.
   private createMatcher(
     patterns: string[],
-    matchers: Map<string, picomatch.Matcher>
+    matchers: Map<string, [Set<string>, picomatch.Matcher]>,
+    isIgnored: boolean
   ) {
     // Get the drive letter of the cwd if windows.
     const driveLetter =
       process.platform === 'win32' ? process.cwd().slice(0, 2) : '';
 
     patterns.forEach((pattern) => {
-      let {base, glob} = picomatch.scan(pattern);
-
-      base = driveLetter + path.posix.resolve('.', path.posix.join('.', base));
-
-      const globs = this.globPatterns.get(base);
-
-      if (glob === '') {
-        if (this.isFile(base)) {
-          this.files.add(base);
-        } else {
-          glob = '**';
+      try {
+        if (typeof pattern !== 'string' || pattern === '') {
+          throw TypeError(
+            `Expected argument type is 'string', but got '${typeof pattern}'`
+          );
         }
+        pattern = (pattern[0] === '/' ? '.' : '') + pattern;
+        let {base, glob} = picomatch.scan(pattern);
+
+        base =
+          driveLetter +
+          path.posix.resolve('.', path.relative('.', base)).replace(/\\/g, '/');
+
+        let matcher = matchers.get(base);
+
+        if (glob === '') {
+          if (!isIgnored && this.isFile(base) && !this.files.has(base)) {
+            this.files.add(base);
+            this.watchPath(base);
+          } else {
+            glob = '**';
+          }
+        }
+
+        pattern = path.posix.join(base, glob);
+
+        if (matcher) {
+          matcher[0].add(pattern);
+        } else {
+          matchers.set(base, [new Set<string>().add(pattern), () => true]);
+        }
+
+        matcher = matchers.get(base);
+
+        if (matcher) {
+          matcher[1] = picomatch(Array.from(matcher[0]));
+        }
+      } catch (error) {
+        this.emit('error', error);
       }
-
-      pattern = path.posix.join(base, glob);
-
-      if (globs) {
-        globs.add(pattern);
-      } else {
-        this.globPatterns.set(base, new Set<string>().add(pattern));
-      }
-
-      matchers.set(
-        base,
-        picomatch(Array.from(this.globPatterns.get(base) ?? []))
-      );
     });
   }
 
   // This method initiates the native module notify with
   // path to be watched for fs events.
-  private watch(opts: WatchOptions, dirs: Set<string>, files: Set<string>) {
+  private watch(opts: WatchOptions) {
     const {usePolling, pollInterval} = opts;
 
     // Pass the watch options as string and array of paths to be watched
@@ -177,7 +191,7 @@ class FsEvent extends EventEmitter {
           switch (event.kind) {
             case 'addDir':
               this.dirs.add(event.path);
-              this.add(event.path);
+              this.watchPath(event.path);
               break;
             case 'remove':
               if (this.dirs.has(event.path)) {
@@ -193,13 +207,22 @@ class FsEvent extends EventEmitter {
         }
       }
     );
-    dirs.forEach((path) => {
-      this.add(path);
-    });
-    files.forEach((path) => {
-      this.add(path);
-    });
-    this.emit('ready', 'watching for fs events');
+  }
+
+  private watchPath(path: string) {
+    try {
+      add(this.watcher, path);
+    } catch (error) {
+      this.emit('error', error);
+    }
+  }
+
+  private unwatchPath(path: string) {
+    try {
+      unwatch(this.watcher, path);
+    } catch (error) {
+      this.emit('error', error);
+    }
   }
 
   // Public methods
@@ -209,24 +232,16 @@ class FsEvent extends EventEmitter {
    * after the initial setup of the watcher instance.
    * @param path {string} path to be watched for fs events
    */
-  add(path: string) {
-    try {
-      if (typeof path !== 'string' || path === '') {
-        throw new TypeError(
-          `Expected argument type is 'string', but got '${typeof path}'`
-        );
-      }
-      add(this.watcher, path);
+  add(paths: string | string[]) {
+    paths = typeof paths === 'string' ? [paths] : paths;
+    this.createMatcher(paths, this.includePatterns, false);
 
-      // Add the path to the respective set for unwatching the path later.
-      if (this.isFile(path)) {
-        this.files.add(path);
-      } else {
+    this.normalizePattern(paths).forEach((path) => {
+      if (!this.dirs.has(path)) {
         this.dirs.add(path);
+        this.watchPath(path);
       }
-    } catch (error) {
-      this.emit('error', error);
-    }
+    });
   }
 
   /**
@@ -235,46 +250,34 @@ class FsEvent extends EventEmitter {
    * paths from watching if no argument is passed (similar to `unwatchAll()`).
    * @param path {string} [] file or dir to be unwatched (optional)
    */
-  unwatch(path?: string) {
-    const unwatchPath = (path: string) => {
-      try {
-        unwatch(this.watcher, path);
-        this.emit('unwatch', 0, `${path} removed from watching`);
-      } catch (error) {
-        this.emit('error', error);
-      }
-    };
+  unwatch(paths: string | string[]) {
+    paths = typeof paths === 'string' ? [paths] : paths;
 
-    // Call unwatchAll() if argument is empty
-    if (!path) {
-      this.unwatchAll();
-      // Unwatch the path if exist
-    } else if (this.dirs.has(path)) {
-      unwatchPath(path);
-      this.dirs.delete(path);
-    } else if (this.files.has(path)) {
-      unwatchPath(path);
-      this.files.delete(path);
-    } else {
-      this.emit('unwatch', 1, `${path} doesn't exist for unwatching`);
-    }
+    paths.forEach((path) => {
+      if (this.dirs.delete(path) || this.files.delete(path)) {
+        this.includePatterns.delete(path);
+        this.unwatchPath(path);
+      } else {
+        this.emit('error', 1, `${path} doesn't exist for unwatching`);
+      }
+    });
   }
 
   /**
    * This method removes all paths from watching for fs events if exist.
    */
   unwatchAll() {
-    try {
-      this.dirs.forEach((path) => {
-        unwatch(this.watcher, path);
-      });
-      this.files.forEach((path) => {
-        unwatch(this.watcher, path);
-      });
-      this.emit('unwatch', 0, 'all paths removed from watching');
-    } catch (error) {
-      this.emit('error', error);
-    }
+    this.dirs.forEach((path) => {
+      this.unwatchPath(path);
+    });
+    this.files.forEach((path) => {
+      this.unwatchPath(path);
+    });
+
+    // Clear all fields except ignorePatterns
+    this.dirs.clear();
+    this.files.clear();
+    this.includePatterns.clear();
   }
 
   /**
