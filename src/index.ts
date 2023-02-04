@@ -46,7 +46,7 @@ class FsEvent extends EventEmitter {
   private includePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
   private ignorePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
 
-  constructor(dirs: string[], options: WatchOptions) {
+  constructor(options: WatchOptions) {
     super();
 
     // Default lsdirp options
@@ -58,13 +58,17 @@ class FsEvent extends EventEmitter {
 
     mergeObj(opts, options);
 
-    this.ignored.push(...opts.ignored);
+    // Push only non-empty string into ignored field for creating matcher.
+    opts.ignored.forEach((ignored) => {
+      if (typeof ignored === 'string' && ignored !== '') {
+        this.ignored.push(ignored);
+      }
+    });
 
     this.watch(opts);
 
     this.createMatcher(this.ignored, this.ignorePatterns, true);
-    this.add(dirs);
-    this.emit('ready', 'watching for fs events');
+    process.nextTick(() => this.emit('ready', 'watching for fs events'));
   }
 
   // Private Methods
@@ -83,12 +87,7 @@ class FsEvent extends EventEmitter {
   }
 
   private isFile(path: string) {
-    try {
-      return statSync(path).isFile();
-    } catch (error) {
-      this.emit('error', error);
-      return false;
-    }
+    return statSync(path).isFile();
   }
 
   private patternMatcher(
@@ -163,7 +162,7 @@ class FsEvent extends EventEmitter {
           matcher[1] = picomatch(Array.from(matcher[0]));
         }
       } catch (error) {
-        this.emit('error', error);
+        process.nextTick(() => this.emit('error', error));
       }
     });
   }
@@ -305,15 +304,10 @@ let watcher: FsEvent;
  * @param options {WatchOptions} options to configure watcher
  * @returns {FsEvent} FsEvent instance
  */
-const watch = (dir: string | string[], options: WatchOptions) => {
-  if (!(typeof dir === 'string' || Array.isArray(dir))) {
-    throw new TypeError('Watch dir should be string');
-  }
-
-  dir = typeof dir === 'string' ? [dir] : dir;
-
+const watch = (dir: string | string[], options: WatchOptions): FsEvent => {
   if (!watcher) {
-    watcher = new FsEvent(dir, options);
+    watcher = new FsEvent(options);
+    watcher.add(dir);
   }
   return watcher;
 };
