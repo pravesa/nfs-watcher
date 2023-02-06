@@ -164,8 +164,6 @@ class FsEvent extends EventEmitter {
           driveLetter +
           path.posix.resolve('.', path.relative('.', base)).replace(/\\/g, '/');
 
-        let matcher = matchers.get(base);
-
         if (glob === '') {
           if (!isIgnored && this.#isFile(base) && !this.#files.has(base)) {
             this.#files.add(base);
@@ -177,16 +175,16 @@ class FsEvent extends EventEmitter {
 
         pattern = path.posix.join(base, glob);
 
+        const matcher = matchers.get(base);
+
         if (matcher) {
           matcher[0].add(pattern);
-        } else {
-          matchers.set(base, [new Set<string>().add(pattern), () => true]);
-        }
-
-        matcher = matchers.get(base);
-
-        if (matcher) {
           matcher[1] = picomatch(Array.from(matcher[0]));
+        } else {
+          matchers.set(base, [
+            new Set<string>().add(pattern),
+            picomatch(pattern),
+          ]);
         }
       } catch (error) {
         process.nextTick(() => this.emit('error', error));
