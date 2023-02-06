@@ -69,7 +69,7 @@ class FsEvent extends EventEmitter {
     this.#watch(opts);
 
     this.#createMatcher(this.#ignored, this.#ignorePatterns, true);
-    process.nextTick(() => this.emit('ready', 'watching for fs events'));
+    process.nextTick(() => this.emit('ready'));
   }
 
   // Methods
@@ -341,9 +341,10 @@ class FsEvent extends EventEmitter {
     listener: (event: EventName, path: string) => void
   ): this;
   override on(eventName: 'error', listener: (error: Error) => void): this;
+  override on(eventName: 'ready', listener: () => void): this;
   /**
-   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir' | 'all' | 'error'}
-   * @param listener {((path: string) => void) | ((event: 'add' | 'addDir' | 'modify' | 'remove' | 'removeDir', path: string) => void) | ((error: Error) => void)}
+   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir' | 'all' | 'error' | 'ready'}
+   * @param listener {((path: string) => void) | ((event: 'add' | 'addDir' | 'modify' | 'remove' | 'removeDir', path: string) => void) | ((error: Error) => void) | (() => void)}
    */
   override on(
     eventName: string | symbol,
