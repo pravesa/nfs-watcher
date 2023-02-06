@@ -279,11 +279,17 @@ class FsEvent extends EventEmitter {
     this.includePatterns.clear();
   }
 
+  override on(eventName: EventName, listener: (path: string) => void): this;
+  override on(eventName: 'error', listener: (error: Error) => void): this;
   /**
-   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir'}
-   * @param listener {(path: string) => void}
+   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir' | 'error'}
+   * @param listener {((path: string) => void) | ((error: Error) => void)}
    */
-  override on(eventName: EventName, listener: (path: string) => void): this {
+  override on(
+    eventName: string | symbol,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    listener: (...args: any[]) => void
+  ): this {
     return super.on(eventName, listener);
   }
 }
