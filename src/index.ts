@@ -313,8 +313,13 @@ class FsEvent extends EventEmitter {
     });
   }
 
-  /** Removes all paths from monitoring. */
-  unwatchAll() {
+  /**
+   * Closes the file/directory watcher.
+   * This method removes all event listeners, unwatches all directories and files, and clears all fields.
+   */
+  close() {
+    this.removeAllListeners();
+
     this.#dirs.forEach((path) => {
       this.#unwatchPath(path);
     });
@@ -322,10 +327,12 @@ class FsEvent extends EventEmitter {
       this.#unwatchPath(path);
     });
 
-    // Clear all fields except ignorePatterns
+    // Clear all fields
     this.#dirs.clear();
     this.#files.clear();
     this.#includePatterns.clear();
+    this.#ignorePatterns.clear();
+    this.#recursivePatterns.clear();
   }
 
   override on(eventName: EventName, listener: (path: string) => void): this;
@@ -373,7 +380,7 @@ const watch = (dir: string | string[], options: WatchOptions): FsEvent => {
 
 // Unwatch all paths on process exit
 process.on('SIGTERM', () => {
-  watcher.unwatchAll();
+  watcher.close();
   process.exit(0);
 });
 
