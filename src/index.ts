@@ -203,6 +203,7 @@ class FsEvent extends EventEmitter {
           }
           // Emits file system events
           this.emit(event.kind, event.path);
+          this.emit('all', event.kind, event.path);
         }
       }
     );
@@ -280,10 +281,14 @@ class FsEvent extends EventEmitter {
   }
 
   override on(eventName: EventName, listener: (path: string) => void): this;
+  override on(
+    eventName: 'all',
+    listener: (event: EventName, path: string) => void
+  ): this;
   override on(eventName: 'error', listener: (error: Error) => void): this;
   /**
-   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir' | 'error'}
-   * @param listener {((path: string) => void) | ((error: Error) => void)}
+   * @param eventName {'add' | 'addDir' | 'modify' | 'remove' | 'removeDir' | 'all' | 'error'}
+   * @param listener {((path: string) => void) | ((event: 'add' | 'addDir' | 'modify' | 'remove' | 'removeDir', path: string) => void) | ((error: Error) => void)}
    */
   override on(
     eventName: string | symbol,
