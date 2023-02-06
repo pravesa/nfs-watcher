@@ -45,6 +45,7 @@ class FsEvent extends EventEmitter {
   #ignored = ['**/node_modules', '**/.git', '**/target'];
   #includePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
   #ignorePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
+  #recursivePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
 
   constructor(options: WatchOptions) {
     super();
@@ -136,6 +137,15 @@ class FsEvent extends EventEmitter {
   }
 
   /**
+   * Check if the given path matches a recursive pattern or not.
+   * @param {string} path - The path to be checked.
+   * @returns {boolean} - Returns `true` if the path matches a recursive pattern, `false` otherwise.
+   */
+  #isRecursiveMatch(path: string): boolean {
+    return this.#patternMatcher(path, this.#recursivePatterns);
+  }
+
+  /**
    * Creates a matcher for the given `patterns` and adds it to the `matchers` Map.
    * @param {string[]} patterns - The patterns to create a matcher for.
    * @param {Map<string, [Set<string>, picomatch.Matcher]>} matchers - The map to add the created matcher to.
@@ -175,6 +185,17 @@ class FsEvent extends EventEmitter {
 
         pattern = path.posix.join(base, glob);
 
+        if (
+          !isIgnored &&
+          glob.indexOf('**') !== -1 &&
+          !this.#recursivePatterns.has(base)
+        ) {
+          this.#recursivePatterns.set(base, [
+            new Set<string>(),
+            picomatch(path.posix.join(base, '**')),
+          ]);
+        }
+
         const matcher = matchers.get(base);
 
         if (matcher) {
@@ -213,24 +234,20 @@ class FsEvent extends EventEmitter {
 
         event.path = event.path.replace(/\\/g, '/');
 
-        if (this.#isNotIgnored(event.path) && this.#isMatch(event.path)) {
-          switch (event.kind) {
-            case 'addDir':
-              this.#dirs.add(event.path);
-              this.#watchPath(event.path);
-              break;
-            case 'remove':
-              if (this.#dirs.has(event.path)) {
-                event.kind = 'removeDir';
-                this.unwatch(event.path);
-              }
-              break;
-            default:
-              break;
+        if (this.#isNotIgnored(event.path)) {
+          if (event.kind === 'addDir' && this.#isRecursiveMatch(event.path)) {
+            this.#dirs.add(event.path);
+            this.#watchPath(event.path);
+          } else if (event.kind === 'remove' && this.#dirs.has(event.path)) {
+            event.kind = 'removeDir';
+            this.unwatch(event.path);
           }
-          // Emits file system events
-          this.emit(event.kind, event.path);
-          this.emit('all', event.kind, event.path);
+
+          if (this.#isMatch(event.path)) {
+            // Emits file system events
+            this.emit(event.kind, event.path);
+            this.emit('all', event.kind, event.path);
+          }
         }
       }
     );
