@@ -73,11 +73,12 @@ class FsEvent extends EventEmitter {
 
   // Private Methods
 
-  // To initiate watcher instance on all matching paths, the patterns
-  // are normalized using lsdirp and added to set object. By this way,
-  // duplicate paths are watched only once.
-  private normalizePattern(patterns: string[]) {
-    // Lists only matching directory file type
+  /**
+   * Normalizes the patterns passed by the user by listing only matching directory file type.
+   * @param {string[]} patterns - List of file patterns to be normalized.
+   * @returns {string[]} - An array of normalized directory file paths.
+   */
+  private normalizePattern(patterns: string[]): string[] {
     return lsdirp(patterns, {
       fileType: 'Directory',
       fullPath: true,
@@ -86,14 +87,25 @@ class FsEvent extends EventEmitter {
     });
   }
 
-  private isFile(path: string) {
+  /**
+   * Determines if the given path is a file or not
+   * @param {string} path - The file path to check
+   * @returns {boolean} true if the path is a file, false otherwise
+   */
+  private isFile(path: string): boolean {
     return statSync(path).isFile();
   }
 
+  /**
+   * Determines if the given `path` matches a pattern defined in the `matchers` Map.
+   * @param {string} path - The string to check for a match.
+   * @param {Map<string, [Set<string>, picomatch.Matcher]>} matchers - The map of pattern matching information.
+   * @returns {boolean} - Returns `true` if the `path` matches a pattern defined in the `matchers` Map, `false` otherwise.
+   */
   private patternMatcher(
     path: string,
     matchers: Map<string, [Set<string>, picomatch.Matcher]>
-  ) {
+  ): boolean {
     for (const matcher of matchers) {
       if (path.startsWith(matcher[0])) {
         const result = matcher[1][1](path);
@@ -105,15 +117,30 @@ class FsEvent extends EventEmitter {
     return false;
   }
 
-  private isMatch(path: string) {
+  /**
+   * Check if the given path matches any of the include patterns
+   * @param {string} path - The path to check for matching
+   * @returns {boolean} - Returns true if the path matches any of the include patterns, false otherwise
+   */
+  private isMatch(path: string): boolean {
     return this.patternMatcher(path, this.includePatterns);
   }
 
-  private isNotIgnored(path: string) {
+  /**
+   * Check if the path should not be ignored based on the ignore patterns
+   * @param {string} path - The file path to check against the ignore patterns
+   * @returns {boolean} - Returns true if the path does not match any ignore pattern, false otherwise
+   */
+  private isNotIgnored(path: string): boolean {
     return !this.patternMatcher(path, this.ignorePatterns);
   }
 
-  // This method creates matcher instance from the list of patterns.
+  /**
+   * Creates a matcher for the given `patterns` and adds it to the `matchers` Map.
+   * @param {string[]} patterns - The patterns to create a matcher for.
+   * @param {Map<string, [Set<string>, picomatch.Matcher]>} matchers - The map to add the created matcher to.
+   * @param {boolean} isIgnored - A flag indicating whether the created matcher is for ignored patterns.
+   */
   private createMatcher(
     patterns: string[],
     matchers: Map<string, [Set<string>, picomatch.Matcher]>,
@@ -167,8 +194,10 @@ class FsEvent extends EventEmitter {
     });
   }
 
-  // This method initiates the native module notify with
-  // path to be watched for fs events.
+  /**
+   * Creates a watcher instance with the provided callback function and assigns it to watcher variable.
+   * @param {WatchOptions} opts - Options for configuring watcher instance
+   */
   private watch(opts: WatchOptions) {
     const {usePolling, pollInterval} = opts;
 
@@ -209,6 +238,11 @@ class FsEvent extends EventEmitter {
     );
   }
 
+  /**
+   * This method adds the specified path to the watcher for file changes.
+   * @param {string} path - The file path to be watched.
+   * @throws {Error} If an error occurs while adding the path to the watcher, the method emits an error event with the error.
+   */
   private watchPath(path: string) {
     try {
       add(this.watcher, path);
@@ -217,6 +251,10 @@ class FsEvent extends EventEmitter {
     }
   }
 
+  /**
+   * Removes a file/directory from the watcher's list of monitored targets.
+   * @param path The path to the file/directory to stop monitoring.
+   */
   private unwatchPath(path: string) {
     try {
       unwatch(this.watcher, path);
@@ -228,9 +266,8 @@ class FsEvent extends EventEmitter {
   // Public methods
 
   /**
-   * This method adds the specified path to be watched for fs events
-   * after the initial setup of the watcher instance.
-   * @param path {string} path to be watched for fs events
+   * Adds the provided paths to be watched.
+   * @param {string | string[]} paths - The paths to be watched.
    */
   add(paths: string | string[]) {
     paths = typeof paths === 'string' ? [paths] : paths;
@@ -245,10 +282,8 @@ class FsEvent extends EventEmitter {
   }
 
   /**
-   * This method takes one optional argument and will remove the passed in
-   * path from watching for fs events if it exist. This will remove all
-   * paths from watching if no argument is passed (similar to `unwatchAll()`).
-   * @param path {string} [] file or dir to be unwatched (optional)
+   * Removes the provided paths from monitoring.
+   * @param {string | string[]} paths - The paths to be stopped from monitoring.
    */
   unwatch(paths: string | string[]) {
     paths = typeof paths === 'string' ? [paths] : paths;
@@ -263,9 +298,7 @@ class FsEvent extends EventEmitter {
     });
   }
 
-  /**
-   * This method removes all paths from watching for fs events if exist.
-   */
+  /** Removes all paths from monitoring. */
   unwatchAll() {
     this.dirs.forEach((path) => {
       this.unwatchPath(path);
