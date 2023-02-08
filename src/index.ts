@@ -94,7 +94,11 @@ class FsEvent extends EventEmitter {
    * @returns {boolean} true if the path is a file, false otherwise
    */
   #isFile(path: string): boolean {
-    return statSync(path).isFile();
+    try {
+      return statSync(path).isFile();
+    } catch (error) {
+      return false;
+    }
   }
 
   /**
