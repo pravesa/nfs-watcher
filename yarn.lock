@@ -2728,10 +2728,10 @@ lru-cache@^6.0.0:
   dependencies:
     yallist "^4.0.0"
 
-lsdirp@^2.2.3:
-  version "2.2.3"
-  resolved "https://registry.yarnpkg.com/lsdirp/-/lsdirp-2.2.3.tgz#09d4bef73460bfdf500bac9266b7f6fa1085423e"
-  integrity sha512-tU+M2H0rKvUKNavSU+ud0m5qrVtbDGdEjXS967UmP9dZd3VqeYg6lbbr06TxP3653i1RgS2b6/wUl5kyKPhzhg==
+lsdirp@^2.2.4:
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/lsdirp/-/lsdirp-2.2.4.tgz#dd2055ae1ef646bccdb1fe8e78bbf27fa68d6fdc"
+  integrity sha512-d8v3OSSwsTyP8AFJE+JcAplGLb1hXMk1JBJI1THMOcfpq/JSTklApzPTchxT4r02TOQlI04WENFLWgi8UrD9Rg==
   dependencies:
     picomatch "^2.3.1"
 
