@@ -46,9 +46,13 @@ class FsEvent extends EventEmitter {
   #includePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
   #ignorePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
   #recursivePatterns = new Map<string, [Set<string>, picomatch.Matcher]>();
+  #driveLetter = '';
 
   constructor(options: WatchOptions) {
     super();
+
+    this.#driveLetter =
+      process.platform === 'win32' ? process.cwd().slice(0, 2) : '';
 
     // Default lsdirp options
     const opts: Required<WatchOptions> = {
@@ -160,10 +164,6 @@ class FsEvent extends EventEmitter {
     matchers: Map<string, [Set<string>, picomatch.Matcher]>,
     isIgnored: boolean
   ) {
-    // Get the drive letter of the cwd if windows.
-    const driveLetter =
-      process.platform === 'win32' ? process.cwd().slice(0, 2) : '';
-
     patterns.forEach((pattern) => {
       try {
         if (typeof pattern !== 'string' || pattern === '') {
@@ -174,16 +174,14 @@ class FsEvent extends EventEmitter {
         pattern = (pattern[0] === '/' ? '.' : '') + pattern;
         let {base, glob} = picomatch.scan(pattern);
 
-        base =
-          driveLetter +
-          path.posix.resolve('.', path.relative('.', base)).replace(/\\/g, '/');
+        base = path.posix.relative('.', base);
 
         if (glob === '') {
           if (!isIgnored && this.#isFile(base) && !this.#files.has(base)) {
             this.#files.add(base);
             this.#watchPath(base);
           } else {
-            glob = '**';
+            glob = '*';
           }
         }
 
@@ -236,12 +234,11 @@ class FsEvent extends EventEmitter {
 
         const event = JSON.parse(data) as {kind: EventName; path: string};
 
-        event.path = event.path.replace(/\\/g, '/');
+        event.path = path.relative('.', event.path).replace(/\\/g, '/');
 
         if (this.#isNotIgnored(event.path)) {
           if (event.kind === 'addDir' && this.#isRecursiveMatch(event.path)) {
-            this.#dirs.add(event.path);
-            this.#watchPath(event.path);
+            this.add(event.path);
           } else if (event.kind === 'remove' && this.#dirs.has(event.path)) {
             event.kind = 'removeDir';
             this.unwatch(event.path);
@@ -292,10 +289,12 @@ class FsEvent extends EventEmitter {
     paths = typeof paths === 'string' ? [paths] : paths;
     this.#createMatcher(paths, this.#includePatterns, false);
 
-    this.#normalizePattern(paths).forEach((path) => {
-      if (!this.#dirs.has(path)) {
-        this.#dirs.add(path);
-        this.#watchPath(path);
+    this.#normalizePattern(paths).forEach((_path) => {
+      const relPath = path.relative('.', _path).replace(/\\/g, '/');
+
+      if (!this.#dirs.has(relPath)) {
+        this.#dirs.add(relPath);
+        this.#watchPath(_path);
       }
     });
   }
@@ -307,12 +306,12 @@ class FsEvent extends EventEmitter {
   unwatch(paths: string | string[]) {
     paths = typeof paths === 'string' ? [paths] : paths;
 
-    paths.forEach((path) => {
-      if (this.#dirs.delete(path) || this.#files.delete(path)) {
-        this.#includePatterns.delete(path);
-        this.#unwatchPath(path);
+    paths.forEach((_path) => {
+      if (this.#dirs.delete(_path) || this.#files.delete(_path)) {
+        this.#includePatterns.delete(_path);
+        this.#unwatchPath(this.#driveLetter + path.posix.resolve('.', _path));
       } else {
-        this.emit('error', 1, `${path} doesn't exist for unwatching`);
+        this.emit('error', 1, `${_path} doesn't exist for unwatching`);
       }
     });
   }
